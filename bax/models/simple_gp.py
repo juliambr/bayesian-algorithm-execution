@@ -10,6 +10,7 @@ from .gp.gp_utils import kern_exp_quad, sample_mvn, gp_post
 from ..util.base import Base
 from ..util.misc_util import dict_to_namespace
 
+import pandas as pd
 
 class SimpleGp(Base):
     """
@@ -117,9 +118,16 @@ class SimpleGp(Base):
         if len(data.x) == 0:
             return self.get_prior_mu_cov(x_list, full_cov)
 
+        d = data.x.copy()
+        d = pd.DataFrame(d)
+        if 'OpenML_task_id' in d.columns.values:
+            d = d.drop('OpenML_task_id', axis=1)
+        d = d.values.tolist()
+
+
         # If data is not empty:
         mu, cov = gp_post(
-            data.x,
+            d,
             data.y,
             x_list,
             self.params.ls,

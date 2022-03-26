@@ -16,7 +16,10 @@ from ..util.base import Base
 from ..util.misc_util import dict_to_namespace, suppress_stdout_stderr
 from ..util.domain_util import unif_random_sample_domain
 
+import pandas as pd
 
+# TODO: Review 
+# TODO: All values of x_list are the same 
 class GpfsGp(SimpleGp):
     """
     GP model using GPFlowSampling.
@@ -57,7 +60,11 @@ class GpfsGp(SimpleGp):
         """Set self.data."""
         super().set_data(data)
         self.tf_data = Namespace()
-        self.tf_data.x = tf.convert_to_tensor(np.array(self.data.x))
+        df = pd.DataFrame(self.data.x)
+        # FIXME: Find better solution here
+        if 'OpenML_task_id' in df.columns.values:
+            df = df.drop('OpenML_task_id', axis = 1) # instance is not changed throughout a run; therefore, this is not a feature that is used by the model
+        self.tf_data.x = tf.convert_to_tensor(df)
         self.tf_data.y = tf.convert_to_tensor(
             np.array(self.data.y).reshape(-1, 1)
         )
@@ -92,6 +99,8 @@ class GpfsGp(SimpleGp):
     def call_function_sample_list(self, x_list):
         """Call a set of posterior function samples on respective x in x_list."""
 
+        # Model works not on dictionary but on list of lists
+        x_list = [list(x.values()) if type(x) is dict else x for x in x_list]
         # Replace Nones in x_list with first non-None value
         x_list = self.replace_x_list_none(x_list)
 

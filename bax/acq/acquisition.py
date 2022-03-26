@@ -351,8 +351,8 @@ class BaxAcqFunction(AlgoAcqFunction):
         samp_std_list_full = []
         for exe_path in self.exe_path_full_list:
             comb_data = Namespace()
-            comb_data.x = self.model.data.x + exe_path.x
-            comb_data.y = self.model.data.y + exe_path.y
+            comb_data.x = self.model.data.x.values() + exe_path.x
+            comb_data.y = self.model.data.y.values() + exe_path.y
             samp_mean, samp_std = self.model.gp_post_wrapper(
                 x_list, comb_data, full_cov=False
             )

@@ -567,6 +567,8 @@ class AlgorithmSet:
                     algo.exe_path.x.append(x)
                     algo.exe_path.y.append(y)
                     x_next = algo.get_next_x()
+                    # if x_next is not None:
+                    #     x_next = list(x_next.values())
                 else:
                     x_next = None
                 x_list_new.append(x_next)
