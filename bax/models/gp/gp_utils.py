@@ -16,6 +16,17 @@ def kern_exp_quad(xmat1, xmat2, ls, alpha):
     return alpha ** 2 * kern_exp_quad_noscale(xmat1, xmat2, ls)
 
 
+def kern_matern32(xmat1, xmat2, ls, alpha):
+    """
+    Exponentiated quadratic kernel function (aka squared exponential kernel aka
+    RBF kernel).
+    """
+    r = cdist(xmat1, xmat2, 'euclidean') / ls
+    sqrt3 = np.sqrt(3)
+    val = (1 + sqrt3 * r) * np.exp(- sqrt3 * r)
+    return alpha**2 * val
+
+
 def kern_exp_quad_noscale(xmat1, xmat2, ls):
     """
     Exponentiated quadratic kernel function (aka squared exponential kernel aka
