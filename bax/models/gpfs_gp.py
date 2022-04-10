@@ -8,18 +8,19 @@ import numpy as np
 import tensorflow as tf
 from gpflow import kernels
 from gpflow.config import default_float as floatx
+from gpflow.utilities import print_summary
+import gpflow 
 
 from .simple_gp import SimpleGp
 from .gpfs.models import PathwiseGPR
-from .gp.gp_utils import kern_exp_quad
+from .gp.gp_utils import kern_exp_quad, kern_matern32
 from ..util.base import Base
 from ..util.misc_util import dict_to_namespace, suppress_stdout_stderr
 from ..util.domain_util import unif_random_sample_domain
 
 import pandas as pd
 
-# TODO: Review 
-# TODO: All values of x_list are the same 
+
 class GpfsGp(SimpleGp):
     """
     GP model using GPFlowSampling.
@@ -46,12 +47,10 @@ class GpfsGp(SimpleGp):
         if self.params.kernel_str == 'rbf':
             gpf_kernel = kernels.SquaredExponential(variance=kernvar, lengthscales=ls)
             kernel = getattr(params, 'kernel', kern_exp_quad)
-        elif self.params.kernel_str == 'matern52':
-            gpf_kernel = kernels.Matern52(variance=kernvar, lengthscales=ls)
-            raise Exception('Matern 52 kernel is not yet supported.')
         elif self.params.kernel_str == 'matern32':
             gpf_kernel = kernels.Matern32(variance=kernvar, lengthscales=ls)
-            raise Exception('Matern 32 kernel is not yet supported.')
+            kernel = getattr(params, 'kernel', kern_matern32)
+            # raise Exception('Matern 32 kernel is not yet supported.')
 
         self.params.gpf_kernel = gpf_kernel
         self.params.kernel = kernel
@@ -66,17 +65,34 @@ class GpfsGp(SimpleGp):
             df = df.drop('OpenML_task_id', axis = 1) # instance is not changed throughout a run; therefore, this is not a feature that is used by the model
         self.tf_data.x = tf.convert_to_tensor(df)
         self.tf_data.y = tf.convert_to_tensor(
-            np.array(self.data.y).reshape(-1, 1)
+            np.array(self.data.y, "float64").reshape(-1, 1)
         )
         self.set_model()
 
     def set_model(self):
         """Set GPFlowSampling as self.model."""
-        self.params.model = PathwiseGPR(
+        model = PathwiseGPR(
             data=(self.tf_data.x, self.tf_data.y),
             kernel=self.params.gpf_kernel,
             noise_variance=self.params.sigma**2,
         )
+        # INFO: Original implementation does not do any hyperparameter optimization at all! 
+        try: 
+            opt = gpflow.optimizers.Scipy()
+            opt.minimize(model.training_loss, model.trainable_variables)
+            print_summary(model)
+
+            self.params.model = model
+            # # Update parameters after fitting for better initialization
+            # params = self.params
+            # params.ls = float(model.kernel.lengthscales.numpy())
+            # params.alpha = np.sqrt(model.kernel.variance.numpy())
+            # params.sigma = np.sqrt(model.likelihood.variance.numpy())
+            # self.set_kernel(params)        
+        except: 
+            print("GP likelihood optimization failed. ")
+            # Just set to default
+            self.params.model = model 
 
     def initialize_function_sample_list(self, n_samp=1):
         """Initialize a list of n_samp function samples."""
