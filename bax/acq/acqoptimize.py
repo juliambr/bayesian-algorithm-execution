@@ -6,9 +6,10 @@ from argparse import Namespace
 import copy
 import numpy as np
 
-from .acquisition import BaxAcqFunction
+from .acquisition import BaxAcqFunction, RandAcqFunction
 from ..util.base import Base
 from ..util.misc_util import dict_to_namespace
+import yaml
 
 
 class AcqOptimizer(Base):
@@ -41,7 +42,11 @@ class AcqOptimizer(Base):
         self.set_acqfunction(acqfunction)
 
         # Initialize acquisition function
-        self.acqfunction.initialize()
+        try: 
+            self.acqfunction.initialize()
+        except: 
+            backup_acqfunction = RandAcqFunction({}, acqfunction.model, acqfunction.algorithm)
+            self.set_acqfunction(backup_acqfunction)
 
         # Optimize acquisition function
         if self.params.opt_str == "batch":

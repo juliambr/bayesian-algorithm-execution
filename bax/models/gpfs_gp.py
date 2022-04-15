@@ -76,6 +76,7 @@ class GpfsGp(SimpleGp):
             kernel=self.params.gpf_kernel,
             noise_variance=self.params.sigma**2,
         )
+        self.params.model = model
         # INFO: Original implementation does not do any hyperparameter optimization at all! 
         try: 
             opt = gpflow.optimizers.Scipy()
@@ -83,7 +84,12 @@ class GpfsGp(SimpleGp):
             print_summary(model)
 
             self.params.model = model
-            # # Update parameters after fitting for better initialization
+
+            self.params.alpha = np.sqrt(model.kernel.variance.numpy())
+            self.params.ls = float(model.kernel.lengthscales.numpy())
+            self.params.sigma = max(np.sqrt(model.likelihood.variance.numpy()), 1e-03 + 1e-06)
+
+            # Update parameters after fitting for better initialization
             # params = self.params
             # params.ls = float(model.kernel.lengthscales.numpy())
             # params.alpha = np.sqrt(model.kernel.variance.numpy())
