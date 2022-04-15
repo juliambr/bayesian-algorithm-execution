@@ -86,15 +86,9 @@ class GpfsGp(SimpleGp):
             self.params.model = model
 
             self.params.alpha = np.sqrt(model.kernel.variance.numpy())
-            self.params.ls = float(model.kernel.lengthscales.numpy())
+            self.params.ls = list(model.kernel.lengthscales.numpy())
             self.params.sigma = max(np.sqrt(model.likelihood.variance.numpy()), 1e-03 + 1e-06)
-
-            # Update parameters after fitting for better initialization
-            # params = self.params
-            # params.ls = float(model.kernel.lengthscales.numpy())
-            # params.alpha = np.sqrt(model.kernel.variance.numpy())
-            # params.sigma = np.sqrt(model.likelihood.variance.numpy())
-            # self.set_kernel(params)        
+      
         except: 
             print("GP likelihood optimization failed. ")
             # Just set to default
