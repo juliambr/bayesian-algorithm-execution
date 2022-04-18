@@ -21,8 +21,8 @@ def kern_matern32(xmat1, xmat2, ls, alpha):
     Exponentiated quadratic kernel function (aka squared exponential kernel aka
     RBF kernel).
     """
-    xmat1 = np.asarray(xmat1) / ls
-    xmat2 = np.asarray(xmat2) / ls
+    xmat1 = np.asarray(xmat1) / np.sqrt(ls)
+    xmat2 = np.asarray(xmat2) / np.sqrt(ls)
     r = cdist(xmat1, xmat2, 'euclidean') 
     sqrt3 = np.sqrt(3)
     val = (1 + sqrt3 * r) * np.exp(- sqrt3 * r)
