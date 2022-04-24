@@ -80,6 +80,7 @@ class PathwiseGPModel(GPModel):
 
 class PathwiseGPR(GPR, PathwiseGPModel):
   def __init__(self, *args, paths: AbstractSampler = None, **kwargs):
+    kwargs['noise_variance'] = max(10e-6, kwargs['noise_variance'])
     GPR.__init__(self, *args, **kwargs)
     self._paths = paths
 
