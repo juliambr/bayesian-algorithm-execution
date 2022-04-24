@@ -82,6 +82,7 @@ class GpfsGp(SimpleGp):
         )
 
         d = len(self.data.x[0])
+        d = 1
 
         # repeat 10 times optimization
         models = [None] * 30
@@ -90,7 +91,7 @@ class GpfsGp(SimpleGp):
         for i in range(10): 
             random.seed(i)
             opt = gpflow.optimizers.Scipy()
-            model.kernel.lengthscales.assign(np.random.uniform(1, 20, d))
+            model.kernel.lengthscales.assign(np.random.uniform(1, 20, d)[0])
             model.kernel.variance.assign(np.random.uniform(100, 10000, 1)[0])
             model.likelihood.variance.assign(np.random.uniform(10e-2, 10, 1)[0])
             try:           
@@ -120,7 +121,7 @@ class GpfsGp(SimpleGp):
         self.params.model = models[np.nanargmin(loss)]
 
         self.params.alpha = np.sqrt(model.kernel.variance.numpy() + 10e-6)
-        self.params.ls = list(model.kernel.lengthscales.numpy() + 10e-6)
+        self.params.ls = model.kernel.lengthscales.numpy() + 10e-6
         # self.params.ls = list(np.minimum(model.kernel.lengthscales.numpy() + 10e-6, np.repeat(10e2, d)))  
         self.params.sigma = np.sqrt(model.likelihood.variance.numpy())
 
