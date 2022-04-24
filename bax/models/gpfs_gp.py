@@ -79,6 +79,9 @@ class GpfsGp(SimpleGp):
             kernel=self.params.gpf_kernel,
             noise_variance=self.params.sigma**2,
         )
+
+        d = len(self.data.x[0])
+
         # repeat 10 times optimization
         models = [None] * 10
         loss = [10e6] * 10
@@ -86,7 +89,7 @@ class GpfsGp(SimpleGp):
         for i in range(11): 
             random.seed(i)
             opt = gpflow.optimizers.Scipy()
-            model.kernel.lengthscales.assign(np.random.uniform(1, 20, 2))
+            model.kernel.lengthscales.assign(np.random.uniform(1, 20, d))
             model.kernel.variance.assign(np.random.uniform(100, 10000, 1)[0])
             model.likelihood.variance.assign(np.random.uniform(10e-2, 10, 1)[0])
             try:           
@@ -98,6 +101,9 @@ class GpfsGp(SimpleGp):
                 print("GP likelihood optimization failed in iteration: " + str(i))
 
         self.params.model = models[np.argmin(loss)]
+        self.params.alpha = np.sqrt(model.kernel.variance.numpy())
+        self.params.ls = list(model.kernel.lengthscales.numpy())
+        self.params.sigma = np.sqrt(model.likelihood.variance.numpy())
 
         # TODO: ERROR HANDLING IF ALL OF THEM FAIL! 
 
