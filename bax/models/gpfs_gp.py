@@ -82,7 +82,7 @@ class GpfsGp(SimpleGp):
         )
 
         d = len(self.data.x[0])
-        d = 1
+        # d = 1
 
         # repeat 10 times optimization
         models = [None] * 30
@@ -91,7 +91,7 @@ class GpfsGp(SimpleGp):
         for i in range(10): 
             random.seed(i)
             opt = gpflow.optimizers.Scipy()
-            model.kernel.lengthscales.assign(np.random.uniform(1, 20, d)[0])
+            model.kernel.lengthscales.assign(np.repeat(np.random.uniform(1, 20, 1)[0], d))
             model.kernel.variance.assign(np.random.uniform(100, 10000, 1)[0])
             model.likelihood.variance.assign(np.random.uniform(10e-2, 10, 1)[0])
             try:           
