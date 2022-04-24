@@ -10,6 +10,7 @@ from gpflow import kernels
 from gpflow.config import default_float as floatx
 from gpflow.utilities import print_summary
 import gpflow 
+import random 
 
 from .simple_gp import SimpleGp
 from .gpfs.models import PathwiseGPR
@@ -71,28 +72,34 @@ class GpfsGp(SimpleGp):
 
     def set_model(self):
         """Set GPFlowSampling as self.model."""
+
+        # INFO: Original implementation does not do any hyperparameter optimization at all! 
         model = PathwiseGPR(
             data=(self.tf_data.x, self.tf_data.y),
             kernel=self.params.gpf_kernel,
             noise_variance=self.params.sigma**2,
         )
-        self.params.model = model
-        # INFO: Original implementation does not do any hyperparameter optimization at all! 
-        try: 
+        # repeat 10 times optimization
+        models = [None] * 10
+        loss = [10e6] * 10
+
+        for i in range(11): 
+            random.seed(i)
             opt = gpflow.optimizers.Scipy()
-            opt.minimize(model.training_loss, model.trainable_variables)
-            print_summary(model)
+            model.kernel.lengthscales.assign(np.random.uniform(1, 20, 2))
+            model.kernel.variance.assign(np.random.uniform(100, 10000, 1)[0])
+            model.likelihood.variance.assign(np.random.uniform(10e-2, 10, 1)[0])
+            try:           
+                res = opt.minimize(model.training_loss, model.trainable_variables)
+                loss[i] = res.fun
+                models[i] = model
+                print_summary(model)
+            except:
+                print("GP likelihood optimization failed in iteration: " + str(i))
 
-            self.params.model = model
+        self.params.model = models[np.argmin(loss)]
 
-            self.params.alpha = np.sqrt(model.kernel.variance.numpy())
-            self.params.ls = list(model.kernel.lengthscales.numpy())
-            self.params.sigma = max(np.sqrt(model.likelihood.variance.numpy()), 1e-03 + 1e-06)
-      
-        except: 
-            print("GP likelihood optimization failed. ")
-            # Just set to default
-            self.params.model = model 
+        # TODO: ERROR HANDLING IF ALL OF THEM FAIL! 
 
     def initialize_function_sample_list(self, n_samp=1):
         """Initialize a list of n_samp function samples."""
