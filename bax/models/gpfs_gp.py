@@ -49,6 +49,7 @@ class GpfsGp(SimpleGp):
             gpf_kernel = kernels.SquaredExponential(variance=kernvar, lengthscales=ls)
             kernel = getattr(params, 'kernel', kern_exp_quad)
         elif self.params.kernel_str == 'matern32':
+            print(kernvar)
             gpf_kernel = kernels.Matern32(variance=kernvar, lengthscales=ls)
             kernel = getattr(params, 'kernel', kern_matern32)
             # raise Exception('Matern 32 kernel is not yet supported.')
@@ -83,10 +84,10 @@ class GpfsGp(SimpleGp):
         d = len(self.data.x[0])
 
         # repeat 10 times optimization
-        models = [None] * 10
-        loss = [10e6] * 10
+        models = [None] * 30
+        loss = [np.nan] * 30
 
-        for i in range(11): 
+        for i in range(10): 
             random.seed(i)
             opt = gpflow.optimizers.Scipy()
             model.kernel.lengthscales.assign(np.random.uniform(1, 20, d))
@@ -99,13 +100,30 @@ class GpfsGp(SimpleGp):
                 print_summary(model)
             except:
                 print("GP likelihood optimization failed in iteration: " + str(i))
+        
+        if all(np.isnan(loss)): 
+            # More restarts
+            for i in range(11, 31): 
+                random.seed(i)
+                opt = gpflow.optimizers.Scipy()
+                model.kernel.lengthscales.assign(np.repeat(np.random.uniform(1, 20, 1)[0], d))
+                model.kernel.variance.assign(np.random.uniform(100, 10000, 1)[0])
+                model.likelihood.variance.assign(np.random.uniform(10e-2, 10, 1)[0])
+                try:           
+                    res = opt.minimize(model.training_loss, model.trainable_variables)
+                    loss[i] = res.fun
+                    models[i] = model
+                    print_summary(model)
+                except:
+                    print("GP likelihood optimization failed in iteration: " + str(i))
+        
+        self.params.model = models[np.nanargmin(loss)]
 
-        self.params.model = models[np.argmin(loss)]
-        self.params.alpha = np.sqrt(model.kernel.variance.numpy())
-        self.params.ls = list(model.kernel.lengthscales.numpy())
+        self.params.alpha = np.sqrt(model.kernel.variance.numpy() + 10e-6)
+        self.params.ls = list(model.kernel.lengthscales.numpy() + 10e-6)
+        # self.params.ls = list(np.minimum(model.kernel.lengthscales.numpy() + 10e-6, np.repeat(10e2, d)))  
         self.params.sigma = np.sqrt(model.likelihood.variance.numpy())
 
-        # TODO: ERROR HANDLING IF ALL OF THEM FAIL! 
 
     def initialize_function_sample_list(self, n_samp=1):
         """Initialize a list of n_samp function samples."""
