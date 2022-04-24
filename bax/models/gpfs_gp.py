@@ -84,46 +84,56 @@ class GpfsGp(SimpleGp):
         d = len(self.data.x[0])
         # d = 1
 
-        # repeat 10 times optimization
-        models = [None] * 30
-        loss = [np.nan] * 30
-
-        for i in range(10): 
-            random.seed(i)
+        try: 
             opt = gpflow.optimizers.Scipy()
-            model.kernel.lengthscales.assign(np.repeat(np.random.uniform(1, 20, 1)[0], d))
-            model.kernel.variance.assign(np.random.uniform(100, 10000, 1)[0])
-            model.likelihood.variance.assign(np.random.uniform(10e-2, 10, 1)[0])
-            try:           
-                res = opt.minimize(model.training_loss, model.trainable_variables)
-                loss[i] = res.fun
-                models[i] = model
-                print_summary(model)
-            except:
-                print("GP likelihood optimization failed in iteration: " + str(i))
-        
-        if all(np.isnan(loss)): 
-            # More restarts
-            for i in range(11, 31): 
-                random.seed(i)
-                opt = gpflow.optimizers.Scipy()
-                model.kernel.lengthscales.assign(np.repeat(np.random.uniform(1, 20, 1)[0], d))
-                model.kernel.variance.assign(np.random.uniform(100, 10000, 1)[0])
-                model.likelihood.variance.assign(np.random.uniform(10e-2, 10, 1)[0])
-                try:           
-                    res = opt.minimize(model.training_loss, model.trainable_variables)
-                    loss[i] = res.fun
-                    models[i] = model
-                    print_summary(model)
-                except:
-                    print("GP likelihood optimization failed in iteration: " + str(i))
-        
-        self.params.model = models[np.nanargmin(loss)]
+            res = opt.minimize(model.training_loss, model.trainable_variables)
+            self.params.model = model
+            print_summary(model)
+        except:
+            # go with default (no hyperparameter optimization)
+            print("GP likelihood optimization failed; go with default")
+            self.params.model = model
 
-        self.params.alpha = np.sqrt(model.kernel.variance.numpy() + 10e-6)
-        self.params.ls = model.kernel.lengthscales.numpy() + 10e-6
+        # # repeat 10 times optimization
+        # models = [None] * 30
+        # loss = [np.nan] * 30
+
+        # for i in range(10): 
+        #     random.seed(i)
+        #     opt = gpflow.optimizers.Scipy()
+        #     model.kernel.lengthscales.assign(np.repeat(np.random.uniform(1, 20, 1)[0], d))
+        #     model.kernel.variance.assign(np.random.uniform(100, 10000, 1)[0])
+        #     model.likelihood.variance.assign(np.random.uniform(10e-2, 10, 1)[0])
+        #     try:           
+        #         res = opt.minimize(model.training_loss, model.trainable_variables)
+        #         loss[i] = res.fun
+        #         models[i] = model
+        #         print_summary(model)
+        #     except:
+        #         print("GP likelihood optimization failed in iteration: " + str(i))
+        
+        # if all(np.isnan(loss)): 
+        #     # More restarts
+        #     for i in range(11, 31): 
+        #         random.seed(i)
+        #         opt = gpflow.optimizers.Scipy()
+        #         model.kernel.lengthscales.assign(np.repeat(np.random.uniform(1, 20, 1)[0], d))
+        #         model.kernel.variance.assign(np.random.uniform(100, 10000, 1)[0])
+        #         model.likelihood.variance.assign(np.random.uniform(10e-2, 10, 1)[0])
+        #         try:           
+        #             res = opt.minimize(model.training_loss, model.trainable_variables)
+        #             loss[i] = res.fun
+        #             models[i] = model
+        #             print_summary(model)
+        #         except:
+        #             print("GP likelihood optimization failed in iteration: " + str(i))
+        
+        # self.params.model = models[np.nanargmin(loss)]
+
+        # self.params.alpha = np.sqrt(model.kernel.variance.numpy() + 10e-6)
+        # self.params.ls = model.kernel.lengthscales.numpy() + 10e-6
         # self.params.ls = list(np.minimum(model.kernel.lengthscales.numpy() + 10e-6, np.repeat(10e2, d)))  
-        self.params.sigma = np.sqrt(model.likelihood.variance.numpy())
+        # self.params.sigma = np.sqrt(model.likelihood.variance.numpy())
 
 
     def initialize_function_sample_list(self, n_samp=1):
