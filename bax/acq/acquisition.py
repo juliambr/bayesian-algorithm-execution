@@ -351,8 +351,8 @@ class BaxAcqFunction(AlgoAcqFunction):
         samp_std_list_full = []
         for exe_path in self.exe_path_full_list:
             comb_data = Namespace()
-            comb_data.x = self.model.data.x.values() + exe_path.x
-            comb_data.y = self.model.data.y.values() + exe_path.y
+            comb_data.x = self.model.data.x + exe_path.x
+            comb_data.y = self.model.data.y + exe_path.y
             samp_mean, samp_std = self.model.gp_post_wrapper(
                 x_list, comb_data, full_cov=False
             )
@@ -441,6 +441,7 @@ class BaxAcqFunction(AlgoAcqFunction):
 
         with Timer(f"Compute acquisition function for a batch of {len(x_list)} points"):
             # Compute posterior, and post given each execution path sample, for x_list
+            # mu and uncertainty of y_x
             mu, std = self.model.get_post_mu_cov(x_list, full_cov=False)
 
             # Compute mean and std arrays for posterior given execution path samples
@@ -450,6 +451,7 @@ class BaxAcqFunction(AlgoAcqFunction):
                 comb_data = Namespace()
                 comb_data.x = self.model.data.x + exe_path.x
                 comb_data.y = self.model.data.y + exe_path.y
+                # Prediction at y_x and uncertainty of y_x if execution path and data was given
                 samp_mu, samp_std = self.model.gp_post_wrapper(
                     x_list, comb_data, full_cov=False
                 )

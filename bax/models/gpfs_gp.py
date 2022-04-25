@@ -49,7 +49,6 @@ class GpfsGp(SimpleGp):
             gpf_kernel = kernels.SquaredExponential(variance=kernvar, lengthscales=ls)
             kernel = getattr(params, 'kernel', kern_exp_quad)
         elif self.params.kernel_str == 'matern32':
-            print(kernvar)
             gpf_kernel = kernels.Matern32(variance=kernvar, lengthscales=ls)
             kernel = getattr(params, 'kernel', kern_matern32)
             # raise Exception('Matern 32 kernel is not yet supported.')
@@ -81,59 +80,15 @@ class GpfsGp(SimpleGp):
             noise_variance=self.params.sigma**2,
         )
 
-        d = len(self.data.x[0])
-        # d = 1
-
-        try: 
-            opt = gpflow.optimizers.Scipy()
-            res = opt.minimize(model.training_loss, model.trainable_variables)
-            self.params.model = model
-            print_summary(model)
-        except:
-            # go with default (no hyperparameter optimization)
-            print("GP likelihood optimization failed; go with default")
-            self.params.model = model
-
-        # # repeat 10 times optimization
-        # models = [None] * 30
-        # loss = [np.nan] * 30
-
-        # for i in range(10): 
-        #     random.seed(i)
+        # try: 
         #     opt = gpflow.optimizers.Scipy()
-        #     model.kernel.lengthscales.assign(np.repeat(np.random.uniform(1, 20, 1)[0], d))
-        #     model.kernel.variance.assign(np.random.uniform(100, 10000, 1)[0])
-        #     model.likelihood.variance.assign(np.random.uniform(10e-2, 10, 1)[0])
-        #     try:           
-        #         res = opt.minimize(model.training_loss, model.trainable_variables)
-        #         loss[i] = res.fun
-        #         models[i] = model
-        #         print_summary(model)
-        #     except:
-        #         print("GP likelihood optimization failed in iteration: " + str(i))
-        
-        # if all(np.isnan(loss)): 
-        #     # More restarts
-        #     for i in range(11, 31): 
-        #         random.seed(i)
-        #         opt = gpflow.optimizers.Scipy()
-        #         model.kernel.lengthscales.assign(np.repeat(np.random.uniform(1, 20, 1)[0], d))
-        #         model.kernel.variance.assign(np.random.uniform(100, 10000, 1)[0])
-        #         model.likelihood.variance.assign(np.random.uniform(10e-2, 10, 1)[0])
-        #         try:           
-        #             res = opt.minimize(model.training_loss, model.trainable_variables)
-        #             loss[i] = res.fun
-        #             models[i] = model
-        #             print_summary(model)
-        #         except:
-        #             print("GP likelihood optimization failed in iteration: " + str(i))
-        
-        # self.params.model = models[np.nanargmin(loss)]
+        #     res = opt.minimize(model.training_loss, model.trainable_variables)
+        #     print_summary(model)
+        # except:
+        #     # go with default (no hyperparameter optimization)
+        #     print("GP likelihood optimization failed; go with default")
 
-        # self.params.alpha = np.sqrt(model.kernel.variance.numpy() + 10e-6)
-        # self.params.ls = model.kernel.lengthscales.numpy() + 10e-6
-        # self.params.ls = list(np.minimum(model.kernel.lengthscales.numpy() + 10e-6, np.repeat(10e2, d)))  
-        # self.params.sigma = np.sqrt(model.likelihood.variance.numpy())
+        self.params.model = model
 
 
     def initialize_function_sample_list(self, n_samp=1):
@@ -178,6 +133,54 @@ class GpfsGp(SimpleGp):
         x_list_new = [new_val if x is None else x for x in x_list]
 
         return x_list_new
+
+    def gp_post_wrapper(self, x_list, data, full_cov=True):
+        """Fits the Gaussian process and returns the posterior mean and standard deviation. All based on Gpflow."""
+
+        """Wrapper for gp_post given a list of x and data Namespace."""
+        if len(data.x) == 0:
+            return self.get_prior_mu_cov(x_list, full_cov)
+
+
+        d = data.x.copy()
+        d = pd.DataFrame(d)
+        if 'OpenML_task_id' in d.columns.values:
+            d = d.drop('OpenML_task_id', axis=1)
+        d = d.values.tolist()
+
+        x = tf.convert_to_tensor(np.asarray(d, "float64"))
+        y = tf.convert_to_tensor(
+            np.array(self.data.y, "float64").reshape(-1, 1)
+        )
+        model = PathwiseGPR(
+            data=(x, y),
+            kernel=self.params.gpf_kernel,
+            noise_variance=self.params.sigma**2,
+        )
+
+        try: 
+            opt = gpflow.optimizers.Scipy()
+            res = opt.minimize(model.training_loss, model.trainable_variables)
+            print_summary(model)
+        except:
+            # go with default (no hyperparameter optimization)
+            print("GP likelihood optimization failed; go with default")
+
+        # Compute posterior
+        try: 
+            mu, cov = model.predict_f(
+                tf.convert_to_tensor(x_list, dtype=tf.float64)
+            )
+        except: 
+            print("DID NOT WORK")
+            return self.get_prior_mu_cov(x_list, full_cov)
+
+        mu = [el[0] for el in mu.numpy()]
+        cov = [el[0] for el in cov.numpy()]
+
+
+        return mu, cov
+
 
 
 class MultiGpfsGp(Base):
