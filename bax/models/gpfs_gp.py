@@ -4,6 +4,7 @@ Code for Gaussian processes using GPflow and GPflowSampling.
 
 from argparse import Namespace
 import copy
+from re import A
 import numpy as np
 import tensorflow as tf
 from gpflow import kernels
@@ -84,11 +85,13 @@ class GpfsGp(SimpleGp):
             opt = gpflow.optimizers.Scipy()
             res = opt.minimize(model.training_loss, model.trainable_variables)
             self.params.model = model
+
             print_summary(model)
         except:
             # go with default (no hyperparameter optimization)
-            self.params.model = model
             print("GP likelihood optimization failed; go with default")
+
+        self.params.model = model
 
         # Check if it is a meaningful GP 
         # Predict on test data 
@@ -98,9 +101,9 @@ class GpfsGp(SimpleGp):
             d = d.drop('OpenML_task_id', axis=1)
         d = d.values.tolist()
 
-        kernvar = model.kernel.variance.numpy()
+        alpha = np.sqrt(model.kernel.variance.numpy())
         ls = list(model.kernel.lengthscales.numpy())
-        alpha = np.sqrt(model.likelihood.variance.numpy())
+        sigma = np.sqrt(model.likelihood.variance.numpy())
 
         mu, cov = gp_post(
             x_train=d,
@@ -108,21 +111,21 @@ class GpfsGp(SimpleGp):
             x_pred=d,
             ls=ls,
             alpha=alpha,
-            sigma=kernvar,
+            sigma=sigma,
             kernel=self.params.kernel,
             full_cov=False
         )       
 
         if np.var(mu) < 10e-28:
+            print("Constant GP. Switch to default. ")
             self.params.alpha = 10.0
             self.params.ls = [2.5] * len(self.params.ls)
             self.params.sigma = 0.01
         else:
-            print("Constant GP. Switch to default. ")
             # Constant GP; not updating 
-            self.params.alpha = np.sqrt(model.kernel.variance.numpy())
-            self.params.ls = list(model.kernel.lengthscales.numpy())
-            self.params.sigma = np.sqrt(model.likelihood.variance.numpy())
+            self.params.alpha = alpha
+            self.params.ls = ls
+            self.params.sigma = sigma
 
     def initialize_function_sample_list(self, n_samp=1):
         """Initialize a list of n_samp function samples."""
