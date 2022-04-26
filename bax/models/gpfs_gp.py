@@ -116,13 +116,12 @@ class GpfsGp(SimpleGp):
             full_cov=False
         )       
 
-        if np.var(mu) < 10e-28:
+        if np.var(mu) < 10e-6:
             print("Constant GP. Switch to default. ")
             self.params.alpha = 10.0
             self.params.ls = [2.5] * len(self.params.ls)
             self.params.sigma = 0.01
         else:
-            # Constant GP; not updating 
             self.params.alpha = alpha
             self.params.ls = ls
             self.params.sigma = sigma
