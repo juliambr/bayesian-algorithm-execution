@@ -14,7 +14,7 @@ import random
 
 from .simple_gp import SimpleGp
 from .gpfs.models import PathwiseGPR
-from .gp.gp_utils import kern_exp_quad, kern_matern32
+from .gp.gp_utils import kern_exp_quad, kern_matern32, gp_post
 from ..util.base import Base
 from ..util.misc_util import dict_to_namespace, suppress_stdout_stderr
 from ..util.domain_util import unif_random_sample_domain
@@ -80,16 +80,49 @@ class GpfsGp(SimpleGp):
             noise_variance=self.params.sigma**2,
         )
 
-        # try: 
-        #     opt = gpflow.optimizers.Scipy()
-        #     res = opt.minimize(model.training_loss, model.trainable_variables)
-        #     print_summary(model)
-        # except:
-        #     # go with default (no hyperparameter optimization)
-        #     print("GP likelihood optimization failed; go with default")
+        try: 
+            opt = gpflow.optimizers.Scipy()
+            res = opt.minimize(model.training_loss, model.trainable_variables)
+            self.params.model = model
+            print_summary(model)
+        except:
+            # go with default (no hyperparameter optimization)
+            self.params.model = model
+            print("GP likelihood optimization failed; go with default")
 
-        self.params.model = model
+        # Check if it is a meaningful GP 
+        # Predict on test data 
+        d = self.data.x.copy()
+        d = pd.DataFrame(d)
+        if 'OpenML_task_id' in d.columns.values:
+            d = d.drop('OpenML_task_id', axis=1)
+        d = d.values.tolist()
 
+        kernvar = model.kernel.variance.numpy()
+        ls = list(model.kernel.lengthscales.numpy())
+        alpha = np.sqrt(model.likelihood.variance.numpy())
+
+        mu, cov = gp_post(
+            x_train=d,
+            y_train=self.data.y,
+            x_pred=d,
+            ls=ls,
+            alpha=alpha,
+            sigma=kernvar,
+            kernel=self.params.kernel,
+            full_cov=False
+        )       
+
+        if np.var(mu) < 10e-28:
+            self.params.alpha = 10.0
+            self.params.ls = [2.5] * len(self.params.ls)
+            self.params.sigma = 0.01
+        else:
+            print("Constant GP. Switch to default. ")
+            # Constant GP; not updating 
+            self.params.alpha = np.sqrt(model.kernel.variance.numpy())
+            self.params.ls = list(model.kernel.lengthscales.numpy())
+            self.params.sigma = np.sqrt(model.likelihood.variance.numpy())
 
     def initialize_function_sample_list(self, n_samp=1):
         """Initialize a list of n_samp function samples."""
@@ -134,52 +167,56 @@ class GpfsGp(SimpleGp):
 
         return x_list_new
 
-    def gp_post_wrapper(self, x_list, data, full_cov=True):
-        """Fits the Gaussian process and returns the posterior mean and standard deviation. All based on Gpflow."""
+    # def gp_post_wrapper(self, x_list, data, full_cov=True):
+    #     """Fits the Gaussian process and returns the posterior mean and standard deviation. All based on Gpflow."""
 
-        """Wrapper for gp_post given a list of x and data Namespace."""
-        if len(data.x) == 0:
-            return self.get_prior_mu_cov(x_list, full_cov)
-
-
-        d = data.x.copy()
-        d = pd.DataFrame(d)
-        if 'OpenML_task_id' in d.columns.values:
-            d = d.drop('OpenML_task_id', axis=1)
-        d = d.values.tolist()
-
-        x = tf.convert_to_tensor(np.asarray(d, "float64"))
-        y = tf.convert_to_tensor(
-            np.array(self.data.y, "float64").reshape(-1, 1)
-        )
-        model = PathwiseGPR(
-            data=(x, y),
-            kernel=self.params.gpf_kernel,
-            noise_variance=self.params.sigma**2,
-        )
-
-        try: 
-            opt = gpflow.optimizers.Scipy()
-            res = opt.minimize(model.training_loss, model.trainable_variables)
-            print_summary(model)
-        except:
-            # go with default (no hyperparameter optimization)
-            print("GP likelihood optimization failed; go with default")
-
-        # Compute posterior
-        try: 
-            mu, cov = model.predict_f(
-                tf.convert_to_tensor(x_list, dtype=tf.float64)
-            )
-        except: 
-            print("DID NOT WORK")
-            return self.get_prior_mu_cov(x_list, full_cov)
-
-        mu = [el[0] for el in mu.numpy()]
-        cov = [el[0] for el in cov.numpy()]
+    #     """Wrapper for gp_post given a list of x and data Namespace."""
+    #     if len(data.x) == 0:
+    #         return self.get_prior_mu_cov(x_list, full_cov)
 
 
-        return mu, cov
+    #     d = data.x.copy()
+    #     d = pd.DataFrame(d)
+    #     if 'OpenML_task_id' in d.columns.values:
+    #         d = d.drop('OpenML_task_id', axis=1)
+    #     d = d.values.tolist()
+
+    #     x = tf.convert_to_tensor(np.asarray(d, "float64"))
+    #     y = tf.convert_to_tensor(
+    #         np.array(data.y, "float64").reshape(-1, 1)
+    #     )
+    #     model = PathwiseGPR(
+    #         data=(x, y),
+    #         kernel=self.params.gpf_kernel,
+    #         noise_variance=self.params.sigma**2,
+    #     )
+
+    #     xlarr = tf.convert_to_tensor(np.array(x_list, "float32")  / 1.0)
+
+
+    #     model.kernel.variance = self.params.alpha**2
+    #     model.kernel.lengthscales = self.params.ls
+
+    #     # try: 
+    #     #     opt = gpflow.optimizers.Scipy()
+    #     #     res = opt.minimize(model.training_loss, model.trainable_variables)
+    #     #     print_summary(model)
+    #     # except:
+    #     #     # go with default (no hyperparameter optimization)
+    #     #     print("GP likelihood optimization failed; go with default")
+
+    #     # Compute posterior
+    #     try: 
+    #         mu, cov = model.predict_f(xlarr)
+    #     except: 
+    #         print("DID NOT WORK")
+    #         return self.get_prior_mu_cov(x_list, full_cov)
+
+    #     mu = [el[0] for el in mu.numpy()]
+    #     cov = [el[0] for el in cov.numpy()]
+
+
+    #     return mu, cov
 
 
 
