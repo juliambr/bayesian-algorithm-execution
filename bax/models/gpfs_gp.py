@@ -75,13 +75,14 @@ class GpfsGp(SimpleGp):
         """Set GPFlowSampling as self.model."""
 
         # INFO: Original implementation does not do any hyperparameter optimization at all! 
-        model = PathwiseGPR(
+        model_default = PathwiseGPR(
             data=(self.tf_data.x, self.tf_data.y),
             kernel=self.params.gpf_kernel,
             noise_variance=self.params.sigma**2,
         )
 
         try: 
+            model = model_default
             opt = gpflow.optimizers.Scipy()
             res = opt.minimize(model.training_loss, model.trainable_variables)
             self.params.model = model
@@ -89,9 +90,9 @@ class GpfsGp(SimpleGp):
             print_summary(model)
         except:
             # go with default (no hyperparameter optimization)
+            self.params.model = model_default
             print("GP likelihood optimization failed; go with default")
 
-        self.params.model = model
 
         # Check if it is a meaningful GP 
         # Predict on test data 
@@ -105,26 +106,33 @@ class GpfsGp(SimpleGp):
         ls = list(model.kernel.lengthscales.numpy())
         sigma = np.sqrt(model.likelihood.variance.numpy())
 
-        mu, cov = gp_post(
-            x_train=d,
-            y_train=self.data.y,
-            x_pred=d,
-            ls=ls,
-            alpha=alpha,
-            sigma=sigma,
-            kernel=self.params.kernel,
-            full_cov=False
-        )       
+        try: 
+            mu, cov = gp_post(
+                x_train=d,
+                y_train=self.data.y,
+                x_pred=d,
+                ls=ls,
+                alpha=alpha,
+                sigma=sigma,
+                kernel=self.params.kernel,
+                full_cov=False
+            )       
+            lsratio = max(ls) / min(ls)
 
-        if np.var(mu) < 10e-6:
-            print("Constant GP. Switch to default. ")
+            if np.var(mu) < 10e-28 or lsratio > 10e3:
+                print("Constant GP or ratio of lengthscales to high. Switch to default. ")
+                self.params.alpha = 10.0
+                self.params.ls = [2.5] * len(self.params.ls)
+                self.params.sigma = 0.01
+            else:
+                self.params.alpha = alpha
+                self.params.ls = ls
+                self.params.sigma = sigma
+        except: 
             self.params.alpha = 10.0
             self.params.ls = [2.5] * len(self.params.ls)
             self.params.sigma = 0.01
-        else:
-            self.params.alpha = alpha
-            self.params.ls = ls
-            self.params.sigma = sigma
+         
 
     def initialize_function_sample_list(self, n_samp=1):
         """Initialize a list of n_samp function samples."""
