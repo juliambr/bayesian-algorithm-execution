@@ -4,25 +4,22 @@ Code for Gaussian processes using GPflow and GPflowSampling.
 
 from argparse import Namespace
 import copy
-from re import A
 import numpy as np
 import tensorflow as tf
 from gpflow import kernels
 from gpflow.config import default_float as floatx
-from gpflow.utilities import print_summary
-import gpflow 
-import random 
 
 from .simple_gp import SimpleGp
 from .gpfs.models import PathwiseGPR
-from .gp.gp_utils import kern_exp_quad, kern_matern32, gp_post
+from .gp.gp_utils import kern_exp_quad
 from ..util.base import Base
 from ..util.misc_util import dict_to_namespace, suppress_stdout_stderr
 from ..util.domain_util import unif_random_sample_domain
 
 import pandas as pd
 
-
+# TODO: Review 
+# TODO: All values of x_list are the same 
 class GpfsGp(SimpleGp):
     """
     GP model using GPFlowSampling.
@@ -49,10 +46,12 @@ class GpfsGp(SimpleGp):
         if self.params.kernel_str == 'rbf':
             gpf_kernel = kernels.SquaredExponential(variance=kernvar, lengthscales=ls)
             kernel = getattr(params, 'kernel', kern_exp_quad)
+        elif self.params.kernel_str == 'matern52':
+            gpf_kernel = kernels.Matern52(variance=kernvar, lengthscales=ls)
+            raise Exception('Matern 52 kernel is not yet supported.')
         elif self.params.kernel_str == 'matern32':
             gpf_kernel = kernels.Matern32(variance=kernvar, lengthscales=ls)
-            kernel = getattr(params, 'kernel', kern_matern32)
-            # raise Exception('Matern 32 kernel is not yet supported.')
+            raise Exception('Matern 32 kernel is not yet supported.')
 
         self.params.gpf_kernel = gpf_kernel
         self.params.kernel = kernel
@@ -67,72 +66,17 @@ class GpfsGp(SimpleGp):
             df = df.drop('OpenML_task_id', axis = 1) # instance is not changed throughout a run; therefore, this is not a feature that is used by the model
         self.tf_data.x = tf.convert_to_tensor(df)
         self.tf_data.y = tf.convert_to_tensor(
-            np.array(self.data.y, "float64").reshape(-1, 1)
+            np.array(self.data.y).reshape(-1, 1)
         )
         self.set_model()
 
     def set_model(self):
         """Set GPFlowSampling as self.model."""
-
-        # INFO: Original implementation does not do any hyperparameter optimization at all! 
-        model_default = PathwiseGPR(
+        self.params.model = PathwiseGPR(
             data=(self.tf_data.x, self.tf_data.y),
             kernel=self.params.gpf_kernel,
             noise_variance=self.params.sigma**2,
         )
-
-        try: 
-            model = model_default
-            opt = gpflow.optimizers.Scipy()
-            res = opt.minimize(model.training_loss, model.trainable_variables)
-            self.params.model = model
-
-            print_summary(model)
-        except:
-            # go with default (no hyperparameter optimization)
-            self.params.model = model_default
-            print("GP likelihood optimization failed; go with default")
-
-
-        # Check if it is a meaningful GP 
-        # Predict on test data 
-        d = self.data.x.copy()
-        d = pd.DataFrame(d)
-        if 'OpenML_task_id' in d.columns.values:
-            d = d.drop('OpenML_task_id', axis=1)
-        d = d.values.tolist()
-
-        alpha = np.sqrt(model.kernel.variance.numpy())
-        ls = list(model.kernel.lengthscales.numpy())
-        sigma = np.sqrt(model.likelihood.variance.numpy())
-
-        try: 
-            mu, cov = gp_post(
-                x_train=d,
-                y_train=self.data.y,
-                x_pred=d,
-                ls=ls,
-                alpha=alpha,
-                sigma=sigma,
-                kernel=self.params.kernel,
-                full_cov=False
-            )       
-            lsratio = max(ls) / min(ls)
-
-            if np.var(mu) < 10e-28 or lsratio > 10e3:
-                print("Constant GP or ratio of lengthscales to high. Switch to default. ")
-                self.params.alpha = 10.0
-                self.params.ls = [2.5] * len(self.params.ls)
-                self.params.sigma = 0.01
-            else:
-                self.params.alpha = alpha
-                self.params.ls = ls
-                self.params.sigma = sigma
-        except: 
-            self.params.alpha = 10.0
-            self.params.ls = [2.5] * len(self.params.ls)
-            self.params.sigma = 0.01
-         
 
     def initialize_function_sample_list(self, n_samp=1):
         """Initialize a list of n_samp function samples."""
@@ -176,58 +120,6 @@ class GpfsGp(SimpleGp):
         x_list_new = [new_val if x is None else x for x in x_list]
 
         return x_list_new
-
-    # def gp_post_wrapper(self, x_list, data, full_cov=True):
-    #     """Fits the Gaussian process and returns the posterior mean and standard deviation. All based on Gpflow."""
-
-    #     """Wrapper for gp_post given a list of x and data Namespace."""
-    #     if len(data.x) == 0:
-    #         return self.get_prior_mu_cov(x_list, full_cov)
-
-
-    #     d = data.x.copy()
-    #     d = pd.DataFrame(d)
-    #     if 'OpenML_task_id' in d.columns.values:
-    #         d = d.drop('OpenML_task_id', axis=1)
-    #     d = d.values.tolist()
-
-    #     x = tf.convert_to_tensor(np.asarray(d, "float64"))
-    #     y = tf.convert_to_tensor(
-    #         np.array(data.y, "float64").reshape(-1, 1)
-    #     )
-    #     model = PathwiseGPR(
-    #         data=(x, y),
-    #         kernel=self.params.gpf_kernel,
-    #         noise_variance=self.params.sigma**2,
-    #     )
-
-    #     xlarr = tf.convert_to_tensor(np.array(x_list, "float32")  / 1.0)
-
-
-    #     model.kernel.variance = self.params.alpha**2
-    #     model.kernel.lengthscales = self.params.ls
-
-    #     # try: 
-    #     #     opt = gpflow.optimizers.Scipy()
-    #     #     res = opt.minimize(model.training_loss, model.trainable_variables)
-    #     #     print_summary(model)
-    #     # except:
-    #     #     # go with default (no hyperparameter optimization)
-    #     #     print("GP likelihood optimization failed; go with default")
-
-    #     # Compute posterior
-    #     try: 
-    #         mu, cov = model.predict_f(xlarr)
-    #     except: 
-    #         print("DID NOT WORK")
-    #         return self.get_prior_mu_cov(x_list, full_cov)
-
-    #     mu = [el[0] for el in mu.numpy()]
-    #     cov = [el[0] for el in cov.numpy()]
-
-
-    #     return mu, cov
-
 
 
 class MultiGpfsGp(Base):

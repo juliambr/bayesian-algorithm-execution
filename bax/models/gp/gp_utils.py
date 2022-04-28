@@ -15,6 +15,26 @@ def kern_exp_quad(xmat1, xmat2, ls, alpha):
     """
     return alpha ** 2 * kern_exp_quad_noscale(xmat1, xmat2, ls)
 
+def kern_exp_quad_noscale(xmat1, xmat2, ls):
+    """
+    Exponentiated quadratic kernel function (aka squared exponential kernel aka
+    RBF kernel), without scale parameter.
+    """
+    distmat = squared_euc_distmat(xmat1, xmat2)
+    sq_norm = -distmat / (2 * ls ** 2)
+    return np.exp(sq_norm)
+
+    # if ls != 0: 
+    #     xmat1 = np.asarray(xmat1) / ls
+    #     xmat2 = np.asarray(xmat2) / ls
+    # else: 
+    #     xmat1 = np.asarray(xmat1) / 2.5
+    #     xmat2 = np.asarray(xmat2) / 2.5      
+
+    # distmat = squared_euc_distmat(xmat1, xmat2)
+    # sq_norm = -distmat / 2
+    # return np.exp(sq_norm)
+
 
 def kern_matern32(xmat1, xmat2, ls, alpha):
     """
@@ -29,21 +49,6 @@ def kern_matern32(xmat1, xmat2, ls, alpha):
     return alpha**2 * val
 
 
-def kern_exp_quad_noscale(xmat1, xmat2, ls):
-    """
-    Exponentiated quadratic kernel function (aka squared exponential kernel aka
-    RBF kernel), without scale parameter.
-    """
-    if ls != 0: 
-        xmat1 = np.asarray(xmat1) / ls
-        xmat2 = np.asarray(xmat2) / ls
-    else: 
-        xmat1 = np.asarray(xmat1) / 2.5
-        xmat2 = np.asarray(xmat2) / 2.5      
-
-    distmat = squared_euc_distmat(xmat1, xmat2)
-    sq_norm = -distmat / 2
-    return np.exp(sq_norm)
 
 
 def squared_euc_distmat(xmat1, xmat2, coef=1.0):
