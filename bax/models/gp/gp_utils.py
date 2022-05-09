@@ -20,8 +20,14 @@ def kern_exp_quad_noscale(xmat1, xmat2, ls):
     Exponentiated quadratic kernel function (aka squared exponential kernel aka
     RBF kernel), without scale parameter.
     """
+    xmat1 = np.asarray(xmat1) / ls
+    xmat2 = np.asarray(xmat2) / ls
+
     distmat = squared_euc_distmat(xmat1, xmat2)
-    sq_norm = -distmat / (2 * ls ** 2)
+    sq_norm = -distmat / 2
+
+    # distmat = squared_euc_distmat(xmat1, xmat2)
+    # sq_norm = -distmat / (2 * ls ** 2)
     return np.exp(sq_norm)
 
     # if ls != 0: 
