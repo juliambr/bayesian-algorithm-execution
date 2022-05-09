@@ -11,7 +11,7 @@ from gpflow.config import default_float as floatx
 
 from .simple_gp import SimpleGp
 from .gpfs.models import PathwiseGPR
-from .gp.gp_utils import kern_exp_quad
+from .gp.gp_utils import kern_exp_quad, kern_matern32
 from ..util.base import Base
 from ..util.misc_util import dict_to_namespace, suppress_stdout_stderr
 from ..util.domain_util import unif_random_sample_domain
@@ -51,7 +51,8 @@ class GpfsGp(SimpleGp):
             raise Exception('Matern 52 kernel is not yet supported.')
         elif self.params.kernel_str == 'matern32':
             gpf_kernel = kernels.Matern32(variance=kernvar, lengthscales=ls)
-            raise Exception('Matern 32 kernel is not yet supported.')
+            kernel = kern_matern32
+            # raise Exception('Matern 32 kernel is not yet supported.')
 
         self.params.gpf_kernel = gpf_kernel
         self.params.kernel = kernel
