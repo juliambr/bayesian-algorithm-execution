@@ -31,6 +31,8 @@ class AcqFunction(Base):
             If True, print description string.
         """
         super().__init__(params, verbose)
+        print('#### THIS IS MY MODEL')
+        print(model)
         self.set_model(model)
 
     def set_params(self, params):

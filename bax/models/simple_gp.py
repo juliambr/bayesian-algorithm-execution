@@ -124,7 +124,6 @@ class SimpleGp(Base):
             d = d.drop('OpenML_task_id', axis=1)
         d = d.values.tolist()
 
-
         # If data is not empty:
         mu, cov = gp_post(
             d,

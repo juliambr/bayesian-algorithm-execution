@@ -4,6 +4,7 @@ Code for Gaussian processes using GPflow and GPflowSampling.
 
 from argparse import Namespace
 import copy
+import gpflow
 import numpy as np
 import tensorflow as tf
 from gpflow import kernels
@@ -79,6 +80,7 @@ class GpfsGp(SimpleGp):
             noise_variance=self.params.sigma**2,
         )
 
+        
     def initialize_function_sample_list(self, n_samp=1):
         """Initialize a list of n_samp function samples."""
         n_bases = self.params.n_bases
